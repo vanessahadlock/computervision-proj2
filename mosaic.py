@@ -7,6 +7,8 @@ import cv2
 import matplotlib.pyplot as plt
 import math
 
+MAX_FEATURES = 500
+GOOD_MATCH_PERCENT = 0.15
 
 def gradient(img):
 
@@ -102,18 +104,30 @@ def harrisCorners(height, width, Ixx, Iyy, Ixy, alpha, offset, threshold):
             Syy = Wyy.sum()    
             Sxy = Wxy.sum()                
             
-            #Calculate determinant, trace, and cornerness
+            #Calculate determinant, trace, and corner response
             det = (Sxx * Syy) - (Sxy**2)
             trace = Sxx + Syy
             g = det - alpha*(trace**2)
             
-            #If cornerness > threshold, add to corner list
+            #If corner response > threshold, add to corner list
             if g > threshold:
                 cornerList.append([g, x, y, 0])               
                 
     return cornerList
 
+
+def RANSAC():
+
+
+    return
+
     
+def normalizedCrossCorrelation(img1, img2):
+
+    return
+
+
+## this found th corners using the cornerHarris function, but it doesn't seem to return what we need it to 
 # def corner(img):
         
 #     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
@@ -161,11 +175,62 @@ def harrisCorners(height, width, Ixx, Iyy, Ixy, alpha, offset, threshold):
 
 #     return img
 
+# Calculates the homography using RANSAC and then warps the image together
+# Takes in the two grayscale images 
+def alignImages(img1, cornerList1, img2, cornerList2):
+
+  # Detect ORB features and compute descriptors.
+  # orb = cv2.ORB_create(MAX_FEATURES)
+  # keypoints1, descriptors1 = orb.detectAndCompute(img1, None)
+  # keypoints2, descriptors2 = orb.detectAndCompute(img2, None)
+
+  # Match features
+  ####### This is where we need to implement the matching of the corners #######
+
+  # Take the two sets of corners from corner list
+  # Compute normalized cross correlation 
+  # set a threshold to only keep the highest NCC scores as matching corners 
+  # matcher = cv2.DescriptorMatcher_create(cv2.DESCRIPTOR_MATCHER_BRUTEFORCE_HAMMING)
+  # matches = matcher.match(descriptors1, descriptors2, None)
+
+  # Sort matches by the NCC score
+  matches.sort(key=lambda x: x.distance, reverse=False)
+
+  # Remove matches that aren't scored as high
+  numGoodMatches = int(len(matches) * GOOD_MATCH_PERCENT)
+  matches = matches[:numGoodMatches]
+
+  # Draw top matches
+  imMatches = cv2.drawMatches(img1, keypoints1, img2, keypoints2, matches, None)
+  cv2.imwrite("matches.jpg", imMatches)
+
+  # Extract location of good matches
+  points1 = np.zeros((len(matches), 2), dtype=np.float32)
+  points2 = np.zeros((len(matches), 2), dtype=np.float32)
+
+  for i, match in enumerate(matches):
+    points1[i, :] = keypoints1[match.queryIdx].pt
+    points2[i, :] = keypoints2[match.trainIdx].pt
+
+  # Find homography
+  h, mask = cv2.findHomography(points1, points2, cv2.RANSAC)
+
+  # Use homography
+  height, width, channels = img2.shape
+  im1Reg = cv2.warpPerspective(img1, h, (width, height))
+
+  return im1Reg, h
+
+
 def main(): 
 
     # constant between 0.04 - 0.06
     alpha = 0.04
+
+    # size of the window for the harris corner detection
     windowSize = 5
+
+    # threshold for defining what is a corner, if R > threshold
     threshold = 2000
 
     # read in first image
@@ -173,29 +238,48 @@ def main():
     # cv2.imwrite('DanaHallWay1/DSC_0281_grayscale.jpg', img1)
     
     # perform Harris Corner Detection on the first image
+    # this returns the image with the red dots indicating where the corners are
+    # we can use this to test the threshold value
     # corner1 = corner(img1)
     # cv2.imwrite('DanaHallWay1/DSC_0281_corner.jpg', corner1)
 
-    corners = cornerDetection(img1, alpha, windowSize, threshold)
-     
-    # cv2.show(gmax1)
+    corners_img1 = cornerDetection(img1, alpha, windowSize, threshold)
+    
+    # print(corners)
 
     # read in second image
     img2: np.ndarray = cv2.imread('DanaHallWay1/DSC_0282.jpg') 
     
     # cv2.imwrite('DanaHallWay1/DSC_0282_grayscale.jpg', img2)
     # perform Harris Corner Detection on the second image
+    # this returns the image with the red dots indicating where the corners are
+    # we can use this to test the threshold value
     # corner2 = cornerDetection(img2)
     # cv2.imwrite('DanaHallWay1/DSC_0282_corner.jpg', corner2)
 
-    corners = cornerDetection(img2, alpha, windowSize, threshold)    
+    corners_img2 = cornerDetection(img2, alpha, windowSize, threshold)    
 
+    ######## Just focusing on the first two imagees for now ##########
     # read in third image as a grayscale
     # img3: np.ndarray = cv2.imread('DanaHallWay1/DSC_0283.jpg', cv2.IMREAD_GRAYSCALE) 
     # cv2.imwrite('DanaHallWay1/DSC_0283_grayscale.jpg', img3)
     # cornerDetection(img3)
     # cv2.imwrite('DanaHallWay1/DSC_0282_grayscale.jpg', img2)
 
+    print("Aligning images ...")
+    # Registered image will be resotred in imReg.
+    # The estimated homography will be stored in h.
+    imReg, h = alignImages(corners_img1, corners_img2)
+
+    # Write aligned image to disk.
+    outFilename = "aligned.jpg"
+    print("Saving aligned image : ", outFilename);
+    cv2.imwrite(outFilename, imReg)
+
+    # blend pixels in areas of the overlapped part of the image
+
+    # Print estimated homography
+    print("Estimated homography : \n",  h)
 
 
 if __name__ == "__main__":
