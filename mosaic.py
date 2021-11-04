@@ -178,7 +178,7 @@ def normalizedCrossCorrelation(img1, img2):
 # Calculates the homography using RANSAC and then warps the image together
 # Takes in the 4 points of correspondances between the two images
 
-def alignImages(img1, img2, matches):
+def alignImages(img1, img2, matches, RANSAC):
     
     # Sort matches by the NCC score
     # matches.sort(key=lambda x: x.distance, reverse=False)
@@ -207,7 +207,14 @@ def alignImages(img1, img2, matches):
     # im1Reg = cv2.warpPerspective(img1, h, (width, height))
 
     # get the 3x3 transformation homography 
-    H, mask = cv2.findHomography(keypoints1, keypoints2, cv2.RANSAC, 5.0)
+
+    if bool(RANSAC):
+        H, mask = cv2.findHomography(keypoints1, keypoints2, cv2.RANSAC)
+
+    else:
+        H, mask = cv2.findHomography(keypoints1, keypoints2)
+    
+    # inliers of the RANSAC
     matchesMask = mask.ravel().tolist()
 
     # get the size of image 1 
@@ -222,7 +229,7 @@ def alignImages(img1, img2, matches):
 
     img2 = cv2.polylines(img2,[np.int32(dst)],True,255,3, cv2.LINE_AA)
 
-    # draw the inliners of the RANSAC 
+    # draw the inliners of the RANSAC  
     draw_params = dict(matchColor = (0,255,0), # draw matches in green color
                    singlePointColor = None,
                    matchesMask = matchesMask, # draw only inliers
@@ -246,6 +253,10 @@ def main():
 
     # threshold for defining what is a corner, if R > threshold
     threshold = 2000
+
+    # Set RANSAC equal to true or false depending on if we want to clean up the
+    # outlying matches or not 
+    RANSAC = 'True'
 
     # read in first image
     img1: np.ndarray = cv2.imread('DanaHallWay1/DSC_0281.jpg') 
@@ -280,15 +291,17 @@ def main():
     # cornerDetection(img3)
     # cv2.imwrite('DanaHallWay1/DSC_0282_grayscale.jpg', img2)
 
+
     print("Aligning images ...")
-    # Registered image will be resotred in imReg.
-    # The estimated homography will be stored in h.
-    imReg, h = alignImages(corners_img1, corners_img2)
+    # Takes in the two images and the correspondance list 
+    # as well as true or false for RANSAC to determine if
+    # we want to remove the outliers or not
+    panorama = alignImages(img1, img2, correspondances, RANSAC)
 
     # Write aligned image to disk.
-    outFilename = "aligned.jpg"
+    outFilename = "panorama.jpg"
     print("Saving aligned image : ", outFilename);
-    cv2.imwrite(outFilename, imReg)
+    cv2.imwrite(outFilename, panorama)
 
     # blend pixels in areas of the overlapped part of the image
 
