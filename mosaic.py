@@ -196,12 +196,23 @@ def alignImages(img1, img2, correspondances, RANSAC):
     # Remove matches that aren't scored as high
     # numGoodMatches = int(len(matches) * GOOD_MATCH_PERCENT)
     # matches = matches[:numGoodMatches]
+    dst_pts = []
+    src_pts = []
 
-    keypoints1: np.ndarray = [correspondances[1], correspondances[2]]
-    keypoints2: np.ndarray = [correspondances[3], correspondances[4]]
+    for list in correspondances:
+            src_pts.append([list[0], list[1]])
+            dst_pts.append([list[2], list[3]])
 
-    print(f'keypoints1: {keypoints1}')
-    print(f'keypoints1: {keypoints2}')
+    src_pts = np.array(src_pts)
+    dst_pts = np.array(dst_pts)   
+
+    print(type(src_pts))
+
+    #keypoints1: np.ndarray = [correspondances[1], correspondances[2]]
+    #keypoints2: np.ndarray = [correspondances[3], correspondances[4]]
+
+    print(f'src_pts: {src_pts}')
+    print(f'dst_pts: {dst_pts}')
  
     # # Draw top matches
     # imMatches = cv2.drawMatches(img1, keypoints1, img2, keypoints2, correspondances, None)
@@ -222,10 +233,10 @@ def alignImages(img1, img2, correspondances, RANSAC):
     # get the 3x3 transformation homography 
 
     if bool(RANSAC):
-        H, mask = cv2.findHomography(keypoints1, keypoints2, cv2.RANSAC)
+        H, mask = cv2.findHomography(src_pts, dst_pts, cv2.RANSAC)
 
     else:
-        H, mask = cv2.findHomography(keypoints1, keypoints2)
+        H, mask = cv2.findHomography(src_pts, dst_pts)
 
 
     # Print estimated homography
@@ -235,7 +246,7 @@ def alignImages(img1, img2, correspondances, RANSAC):
     matchesMask = mask.ravel().tolist()
 
     # get the size of image 1 
-    height, width = img1.shape
+    height, width = img1.shape[:-1]
 
     # creating a copy of img1 using its dimensions  
     imgcopy = np.float32([ [0,0],[0,height-1],[width-1,height-1],[width-1,0] ]).reshape(-1,1,2)
@@ -252,8 +263,10 @@ def alignImages(img1, img2, correspondances, RANSAC):
                    matchesMask = matchesMask, # draw only inliers
                    flags = 2)
 
+    keypoints1 = src_pts
+    keypoints2 = dst_pts
     # draw the matches between the two images 
-    matchimg = cv2.drawMatches(img1, keypoints1, img2, keypoints2, correspondances, None, **draw_params)
+    matchimg = cv2.drawMatches(img1, keypoints1, img2, keypoints2, correspondances, outImg = imgcopy, matchesThickness = 0.7, singlePointColor = 'green',  matchColor = 'blue')
 
     plt.imshow(matchimg, 'gray'), plt.show()
 
