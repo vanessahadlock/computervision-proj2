@@ -12,14 +12,13 @@ def harrisCorners(img, wsize, alpha, threshold):
 
     ### Compute I_xx, I_yy, I_xy ###
     img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    img = np.float32(img)
 
     if wsize % 2 == 0:
         wsize += 1
     offset = wsize // 2
 
-    I_dx = cv2.Sobel(img, cv2.CV_32F, 1, 0, ksize = wsize)
-    I_dy = cv2.Sobel(img, cv2.CV_32F, 0, 1, ksize = wsize)
+    I_dx = cv2.Sobel(img, -1, 1, 0, ksize = wsize)
+    I_dy = cv2.Sobel(img, -1, 0, 1, ksize = wsize)
 
     I_xx = np.square(I_dx)
     I_yy = np.square(I_dy)
@@ -57,6 +56,8 @@ def harrisCorners(img, wsize, alpha, threshold):
 # Performs NMS on corner imaage given a window size
 def nonMaxSupression(cornerImg, wsize):
 
+    # wsize = 0
+
     if wsize == 0:
         return cornerImg
 
@@ -64,20 +65,35 @@ def nonMaxSupression(cornerImg, wsize):
         wsize += 1
     offset = wsize // 2
 
+    # cornerImg = cornerImg / 10000
+    # cornerImg = np.int64(cornerImg)
+
     h, w = cornerImg.shape
-    for y in range(offset, h - offset):
+    for y in range(offset,  h - offset):
         for x in range(offset, w - offset):
 
-            rWindow = cornerImg[y - offset : y + offset + 1, x - offset : x + offset + 1]            
+            rWindow = cornerImg[y - offset : y + offset + 1, x - offset : x + offset + 1]
 
-            rWindow[rWindow < np.max(rWindow)] = 100  
-    
+            rMax = np.max(rWindow)
+
+            if rMax != 0:
+
+                # print(f'rWindow1:\n{rWindow}\n')
+
+                # for r in range(wsize):
+                #     for c in range(wsize):                               
+                #         if (rWindow[r, c] != 0) & (rWindow[r, c] < rMax):
+                #             cornerImg[y-offset+r, x-offset+c] = 0  
+                #         else:
+                #             cornerImg[y-offset+r, x-offset+c] = 255
+
+                rWindow[rWindow < rMax] = 0
+
     return cornerImg
 
 # Returns binary corner image (0 or 255)
 def harrisNMS(img, alpha, wSizeHarris, wSizeNMS, threshold):
 
-    
     cornerImg = harrisCorners(img, wSizeHarris, alpha, threshold) 
     
     cornerImg = nonMaxSupression(cornerImg, wSizeNMS) 
@@ -189,13 +205,9 @@ def correspondanceNCC(img1, img2, corners_img1, corners_img2, wsize, threshold):
     return correspondances
 
 def alignImages(img1, img2, correspondances, RANSAC):
-    
-    # Sort matches by the NCC score
-    # matches.sort(key=lambda x: x.distance, reverse=False)
 
-    # Remove matches that aren't scored as high
-    # numGoodMatches = int(len(matches) * GOOD_MATCH_PERCENT)
-    # matches = matches[:numGoodMatches]
+    ### convert format of corresponding points ###
+    
     dst_pts = []
     src_pts = []
 
@@ -206,44 +218,22 @@ def alignImages(img1, img2, correspondances, RANSAC):
     src_pts = np.array(src_pts)
     dst_pts = np.array(dst_pts)   
 
-    print(type(src_pts))
+    # print(f'src_pts: {src_pts}')
+    # print(f'dst_pts: {dst_pts}')
 
-    #keypoints1: np.ndarray = [correspondances[1], correspondances[2]]
-    #keypoints2: np.ndarray = [correspondances[3], correspondances[4]]
-
-    print(f'src_pts: {src_pts}')
-    print(f'dst_pts: {dst_pts}')
- 
-    # # Draw top matches
-    # imMatches = cv2.drawMatches(img1, keypoints1, img2, keypoints2, correspondances, None)
-    # cv2.imwrite("matches.jpg", imMatches)
-
-    # # Extract location of good matches
-    # points1 = np.zeros((len(correspondances), 2), dtype=np.float32)
-    # points2 = np.zeros((len(correspondances), 2), dtype=np.float32)
-
-    # for i, match in enumerate(correspondances):
-    #     points1[i, :] = keypoints1[match.queryIdx].pt
-    #     points2[i, :] = keypoints2[match.trainIdx].pt
-
-    # # Use homography
-    # height, width, channels = img2.shape
-    # im1Reg = cv2.warpPerspective(img1, h, (width, height))
-
-    # get the 3x3 transformation homography 
+    ###  get the 3x3 transformation homography ###
 
     if bool(RANSAC):
         H, mask = cv2.findHomography(src_pts, dst_pts, cv2.RANSAC)
-
     else:
         H, mask = cv2.findHomography(src_pts, dst_pts)
 
+    print("Estimated homography : \n",  np.round(H, 3))
 
-    # Print estimated homography
-    print("Estimated homography : \n",  H)
-
-    # inliers of the RANSAC
+    ### inliers of the RANSAC ###
     matchesMask = mask.ravel().tolist()
+
+    print(f'matchesMask:\n{matchesMask}\n')
 
     # get the size of image 1 
     height, width = img1.shape[:-1]
@@ -255,7 +245,11 @@ def alignImages(img1, img2, correspondances, RANSAC):
     # using the homograpy 
     dst = cv2.perspectiveTransform(imgcopy, H)
 
+    print(f'dst:\n{dst}\n')
+
     img2 = cv2.polylines(img2,[np.int32(dst)],True,255,3, cv2.LINE_AA)
+
+    cv2.imwrite("test3.jpg", img2)
 
     # draw the inliners of the RANSAC  
     draw_params = dict(matchColor = (0,255,0), # draw matches in green color
@@ -274,6 +268,23 @@ def alignImages(img1, img2, correspondances, RANSAC):
 
 def main(): 
 
+    test = np.array([[0,0,0,0,8],[0,5,3,0,0],[0,3,0,4,0],[0,0,6,0,2],[0,0,0,0,0]])
+
+    print(f'test:\n{test}')
+
+    h,w = test.shape
+    wsize = 3
+    offset = wsize//2
+
+    for y in range(offset, h-offset):
+        for x in range(offset, w-offset):
+            window = test[y-offset:y+offset+1, x-offset:x+offset+1]
+
+            window[window < np.max(window)] = 1
+
+
+    print(f'test:\n{test}')
+
     ##################################################
     ############### Read in two images ###############
     ##################################################
@@ -287,16 +298,18 @@ def main():
 
     alpha = 0.04 # constant between 0.04 - 0.06
     wSizeHarris = 3 # size of the window for the harris corner detection
-    wSizeNMS = 0 # size of the window for NMS
-    hThreshold = 1500000000 # threshold for defining what is a corner, if R > threshold
+    wSizeNMS = 3 # size of the window for NMS
+    hThreshold = 400000 # threshold for defining what is a corner, if R > threshold
 
-    # print("Finding corners for img1...")
-    # corners_img1 = harrisNMS(img1, alpha, wSizeHarris, wSizeNMS, hThreshold)
-    # cv2.imwrite("test1.jpg", corners_img1)
+    print("Finding corners for img1...")
+    corners_img1 = harrisNMS(img1, alpha, wSizeHarris, wSizeNMS, hThreshold)
+    cv2.imwrite("test1.jpg", corners_img1)
 
-    # print("Finding corners for img2...")
-    # corners_img2 = harrisNMS(img2, alpha, wSizeHarris, wSizeNMS, hThreshold)
-    # cv2.imwrite("test2.jpg", corners_img2)
+    print("Finding corners for img2...")
+    corners_img2 = harrisNMS(img2, alpha, wSizeHarris, wSizeNMS, hThreshold)
+    cv2.imwrite("test2.jpg", corners_img2)
+
+    return
 
     ##################################################
     ######### Find correspondences using NCC #########
