@@ -213,7 +213,11 @@ def alignImages(img1, img2, matches, RANSAC):
 
     else:
         H, mask = cv2.findHomography(keypoints1, keypoints2)
-    
+
+
+    # Print estimated homography
+    print("Estimated homography : \n",  H)
+
     # inliers of the RANSAC
     matchesMask = mask.ravel().tolist()
 
@@ -304,9 +308,6 @@ def main():
     cv2.imwrite(outFilename, panorama)
 
     # blend pixels in areas of the overlapped part of the image
-
-    # Print estimated homography
-    print("Estimated homography : \n",  h)
 
 
 if __name__ == "__main__":
