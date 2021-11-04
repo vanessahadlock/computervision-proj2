@@ -57,7 +57,9 @@ def harrisCorners(img, wsize, alpha, threshold):
 # Performs NMS on corner imaage given a window size
 def nonMaxSupression(cornerImg, wsize):
 
-    wsize -= 2
+    if wsize == 0:
+        return cornerImg
+
     if wsize % 2 == 0:
         wsize += 1
     offset = wsize // 2
@@ -69,11 +71,13 @@ def nonMaxSupression(cornerImg, wsize):
             rWindow = cornerImg[y - offset : y + offset + 1, x - offset : x + offset + 1]
             rMax = np.max(rWindow)
 
-            for r in range(wsize):
-                for c in range(wsize):
+            if rMax != 0:
+                for r in range(wsize):
+                    for c in range(wsize):
 
-                    if rWindow[r][c] < rMax:
-                        cornerImg[y - offset + r, x - offset + c] = 0
+                        if rWindow[r][c] < rMax:
+                            cornerImg[y - offset + r, x - offset + c] = 0
+
     
     return cornerImg
 
@@ -100,8 +104,8 @@ def main():
     ##################################################
 
     alpha = 0.04 # constant between 0.04 - 0.06
-    wSizeHarris = 5 # size of the window for the harris corner detection
-    wSizeNMS = 5 # size of the window for NMS
+    wSizeHarris = 3 # size of the window for the harris corner detection
+    wSizeNMS = 3 # size of the window for NMS
     threshold = 1500000000 # threshold for defining what is a corner, if R > threshold
 
     print("Finding corners for img1...")
