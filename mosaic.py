@@ -50,7 +50,7 @@ def harrisCorners(img, wsize, alpha, threshold):
             
             # If corner response > threshold, add to corner list
             if R > threshold:
-                cornerImg[y][x] = R  
+                cornerImg[y, x] = R  
                 
     return cornerImg
 
@@ -64,20 +64,13 @@ def nonMaxSupression(cornerImg, wsize):
         wsize += 1
     offset = wsize // 2
 
-    h, w, = cornerImg.shape
+    h, w = cornerImg.shape
     for y in range(offset, h - offset):
         for x in range(offset, w - offset):
 
-            rWindow = cornerImg[y - offset : y + offset + 1, x - offset : x + offset + 1]
-            rMax = np.max(rWindow)
+            rWindow = cornerImg[y - offset : y + offset + 1, x - offset : x + offset + 1]            
 
-            if rMax != 0:
-                for r in range(wsize):
-                    for c in range(wsize):
-
-                        if rWindow[r][c] < rMax:
-                            cornerImg[y - offset + r, x - offset + c] = 0
-
+            rWindow[rWindow < np.max(rWindow)] = 100  
     
     return cornerImg
 
