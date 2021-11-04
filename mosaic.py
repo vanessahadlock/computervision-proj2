@@ -84,6 +84,15 @@ def harrisNMS(img, alpha, wSizeHarris, wSizeNMS, threshold):
         
     return cornerImg
 
+def SSD(f, g):
+    return np.sum((f - g) ** 2)
+
+def CC(f, g):
+    f = np.int32(f)
+    g = np.int32(g)
+
+    return np.sum(f * g)
+
 def NCC(f, g):
 
     f = np.int32(f)
@@ -108,7 +117,7 @@ def NCC(f, g):
 
     return np.sum((f / fmag) * (g / gmag))
 
-def correspondenceNCC(img1, img2, corners_img1, corners_img2, wsize, threshold):
+def correspondanceNCC(img1, img2, corners_img1, corners_img2, wsize, threshold):
 
     img1 = cv2.cvtColor(img2, cv2.COLOR_BGR2GRAY)
     img2 = cv2.cvtColor(img2, cv2.COLOR_BGR2GRAY)
@@ -132,7 +141,7 @@ def correspondenceNCC(img1, img2, corners_img1, corners_img2, wsize, threshold):
             if corners_img2[y2][x2] == 255:
                 corners2.append([y2, x2])
 
-    correspondences = []
+    correspondances = []
     ncc = []
     count = 0
     for coord1 in corners1:
@@ -146,31 +155,109 @@ def correspondenceNCC(img1, img2, corners_img1, corners_img2, wsize, threshold):
             w1 = img1[y1 - offset : y1 + offset + 1, x1 - offset : x1 + offset + 1]
             w2 = img2[y2 - offset : y2 + offset + 1, x2 - offset : x2 + offset + 1]
 
-            nccList.append(NCC(w1, w2))       
+            # nccList.append(NCC(w1, w2))
+            nccList.append(SSD(w1, w2))       
 
-        print(f'nccList:\n{np.round(nccList, 5)}\n')
+        # print(f'nccList:\n{np.round(nccList, 5)}\n')
 
-        nccMax = max(nccList)
+        # nccMax = max(nccList)
+        # print(f'nccMax:\n{nccMax}\n')
+        # print(f'nccList.index(nccMax):\n{nccList.index(nccMax)}\n')
 
-        print(f'nccMax:\n{nccMax}\n')
+        # if nccMax > threshold:
+        #     pt2 = corners2[nccList.index(nccMax)]
+        #     correspondences.append(coord1 + pt2)
+        #     ncc.append(nccMax)
 
-        print(f'nccList.index(nccMax):\n{nccList.index(nccMax)}\n')
+        nccMin = min(nccList)
+        # print(f'nccMin:\n{nccMin}\n')
+        # print(f'nccList.index(nccMin):\n{nccList.index(nccMin)}\n')
 
-        if nccMax > threshold:
-            pt2 = corners2[nccList.index(nccMax)]
-            correspondences.append(coord1 + pt2)
-            ncc.append(nccMax)
+        if nccMin > threshold:
+            pt2 = corners2[nccList.index(nccMin)]
+            correspondances.append(coord1 + pt2)
+            ncc.append(nccMin)
 
-        count += 1
-        if count == 5:
-            return correspondences
+        # count += 1
+        # if count == 5:
+        #     return correspondences
 
-    
 
     # print(f'correspondence:\n{correspondence}\n')
     # print(f'ncc:\n{ncc}\n')
 
-    return correspondences
+    return correspondances
+
+def alignImages(img1, img2, correspondances, RANSAC):
+    
+    # Sort matches by the NCC score
+    # matches.sort(key=lambda x: x.distance, reverse=False)
+
+    # Remove matches that aren't scored as high
+    # numGoodMatches = int(len(matches) * GOOD_MATCH_PERCENT)
+    # matches = matches[:numGoodMatches]
+
+    keypoints1: np.ndarray = [correspondances[1], correspondances[2]]
+    keypoints2: np.ndarray = [correspondances[3], correspondances[4]]
+
+    print(f'keypoints1: {keypoints1}')
+    print(f'keypoints1: {keypoints2}')
+ 
+    # # Draw top matches
+    # imMatches = cv2.drawMatches(img1, keypoints1, img2, keypoints2, correspondances, None)
+    # cv2.imwrite("matches.jpg", imMatches)
+
+    # # Extract location of good matches
+    # points1 = np.zeros((len(correspondances), 2), dtype=np.float32)
+    # points2 = np.zeros((len(correspondances), 2), dtype=np.float32)
+
+    # for i, match in enumerate(correspondances):
+    #     points1[i, :] = keypoints1[match.queryIdx].pt
+    #     points2[i, :] = keypoints2[match.trainIdx].pt
+
+    # # Use homography
+    # height, width, channels = img2.shape
+    # im1Reg = cv2.warpPerspective(img1, h, (width, height))
+
+    # get the 3x3 transformation homography 
+
+    if bool(RANSAC):
+        H, mask = cv2.findHomography(keypoints1, keypoints2, cv2.RANSAC)
+
+    else:
+        H, mask = cv2.findHomography(keypoints1, keypoints2)
+
+
+    # Print estimated homography
+    print("Estimated homography : \n",  H)
+
+    # inliers of the RANSAC
+    matchesMask = mask.ravel().tolist()
+
+    # get the size of image 1 
+    height, width = img1.shape
+
+    # creating a copy of img1 using its dimensions  
+    imgcopy = np.float32([ [0,0],[0,height-1],[width-1,height-1],[width-1,0] ]).reshape(-1,1,2)
+    
+    # run perspective transform to warp the img copy on the output
+    # using the homograpy 
+    dst = cv2.perspectiveTransform(imgcopy, H)
+
+    img2 = cv2.polylines(img2,[np.int32(dst)],True,255,3, cv2.LINE_AA)
+
+    # draw the inliners of the RANSAC  
+    draw_params = dict(matchColor = (0,255,0), # draw matches in green color
+                   singlePointColor = None,
+                   matchesMask = matchesMask, # draw only inliers
+                   flags = 2)
+
+    # draw the matches between the two images 
+    matchimg = cv2.drawMatches(img1, keypoints1, img2, keypoints2, correspondances, None, **draw_params)
+
+    plt.imshow(matchimg, 'gray'), plt.show()
+
+    return matchimg
 
 def main(): 
 
@@ -202,7 +289,7 @@ def main():
     ######### Find correspondences using NCC #########
     ##################################################
 
-    wNCC = 10 # window size for ncc
+    wNCC = 7 # window size for ncc
     nccThreshold = 0 # threshold for defining if two windows match
 
     corners_img1 = cv2.imread("test1.jpg", cv2.IMREAD_GRAYSCALE)
@@ -213,8 +300,8 @@ def main():
     # print(print(corners_img2))
 
     print("Finding correspondences...\n")
-    correspondences = correspondenceNCC(img1, img2, corners_img1, corners_img2, wNCC, nccThreshold)
-    print(f'correspondences:\n{correspondences}\n')   
+    correspondances = correspondanceNCC(img1, img2, corners_img1, corners_img2, wNCC, nccThreshold)
+    print(f'correspondences:\n{correspondances}\n')   
 
     ##################################################
     ######## Estimate homography using RANSAC ########
@@ -223,6 +310,20 @@ def main():
     ##################################################
     ############# Align images into one ##############
     ##################################################
+
+    print("Aligning images ...")
+    # Takes in the two images and the correspondance list 
+    # as well as true or false for RANSAC to determine if
+    # we want to remove the outliers or not
+    RANSAC = True
+
+    panorama = alignImages(img1, img2, correspondances, RANSAC)
+
+    # Write aligned image to disk.
+    outFilename = "panorama.jpg"
+    print("Saving aligned image : ", outFilename)
+    cv2.imwrite(outFilename, panorama)
+
 
 if __name__ == "__main__":
     main()
