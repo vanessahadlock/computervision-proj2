@@ -176,50 +176,64 @@ def normalizedCrossCorrelation(img1, img2):
 #     return img
 
 # Calculates the homography using RANSAC and then warps the image together
-# Takes in the two grayscale images 
-def alignImages(img1, cornerList1, img2, cornerList2):
+# Takes in the 4 points of correspondances between the two images
 
-  # Detect ORB features and compute descriptors.
-  # orb = cv2.ORB_create(MAX_FEATURES)
-  # keypoints1, descriptors1 = orb.detectAndCompute(img1, None)
-  # keypoints2, descriptors2 = orb.detectAndCompute(img2, None)
+def alignImages(img1, img2, matches):
+    
+    # Sort matches by the NCC score
+    # matches.sort(key=lambda x: x.distance, reverse=False)
 
-  # Match features
-  ####### This is where we need to implement the matching of the corners #######
+    # Remove matches that aren't scored as high
+    # numGoodMatches = int(len(matches) * GOOD_MATCH_PERCENT)
+    # matches = matches[:numGoodMatches]
 
-  # Take the two sets of corners from corner list
-  # Compute normalized cross correlation 
-  # set a threshold to only keep the highest NCC scores as matching corners 
-  # matcher = cv2.DescriptorMatcher_create(cv2.DESCRIPTOR_MATCHER_BRUTEFORCE_HAMMING)
-  # matches = matcher.match(descriptors1, descriptors2, None)
+    keypoints1: np.ndarray = [matches[1], matches[2]]
+    keypoints2: np.ndarray = [matches[3], matches[4]]
+ 
+    # # Draw top matches
+    # imMatches = cv2.drawMatches(img1, keypoints1, img2, keypoints2, correspondances, None)
+    # cv2.imwrite("matches.jpg", imMatches)
 
-  # Sort matches by the NCC score
-  matches.sort(key=lambda x: x.distance, reverse=False)
+    # # Extract location of good matches
+    # points1 = np.zeros((len(correspondances), 2), dtype=np.float32)
+    # points2 = np.zeros((len(correspondances), 2), dtype=np.float32)
 
-  # Remove matches that aren't scored as high
-  numGoodMatches = int(len(matches) * GOOD_MATCH_PERCENT)
-  matches = matches[:numGoodMatches]
+    # for i, match in enumerate(correspondances):
+    #     points1[i, :] = keypoints1[match.queryIdx].pt
+    #     points2[i, :] = keypoints2[match.trainIdx].pt
 
-  # Draw top matches
-  imMatches = cv2.drawMatches(img1, keypoints1, img2, keypoints2, matches, None)
-  cv2.imwrite("matches.jpg", imMatches)
+    # # Use homography
+    # height, width, channels = img2.shape
+    # im1Reg = cv2.warpPerspective(img1, h, (width, height))
 
-  # Extract location of good matches
-  points1 = np.zeros((len(matches), 2), dtype=np.float32)
-  points2 = np.zeros((len(matches), 2), dtype=np.float32)
+    # get the 3x3 transformation homography 
+    H, mask = cv2.findHomography(keypoints1, keypoints2, cv2.RANSAC, 5.0)
+    matchesMask = mask.ravel().tolist()
 
-  for i, match in enumerate(matches):
-    points1[i, :] = keypoints1[match.queryIdx].pt
-    points2[i, :] = keypoints2[match.trainIdx].pt
+    # get the size of image 1 
+    height, width = img1.shape
 
-  # Find homography
-  h, mask = cv2.findHomography(points1, points2, cv2.RANSAC)
+    # creating a copy of img1 using its dimensions  
+    imgcopy = np.float32([ [0,0],[0,height-1],[width-1,height-1],[width-1,0] ]).reshape(-1,1,2)
+    
+    # run perspective transform to warp the img copy on the output
+    # using the homograpy 
+    dst = cv2.perspectiveTransform(imgcopy, H)
 
-  # Use homography
-  height, width, channels = img2.shape
-  im1Reg = cv2.warpPerspective(img1, h, (width, height))
+    img2 = cv2.polylines(img2,[np.int32(dst)],True,255,3, cv2.LINE_AA)
 
-  return im1Reg, h
+    # draw the inliners of the RANSAC 
+    draw_params = dict(matchColor = (0,255,0), # draw matches in green color
+                   singlePointColor = None,
+                   matchesMask = matchesMask, # draw only inliers
+                   flags = 2)
+
+    # draw the matches between the two images 
+    matchimg = cv2.drawMatches(img1, keypoints1, img2, keypoints2, matches, None, **draw_params)
+
+    plt.imshow(matchimg, 'gray'), plt.show()
+
+    return matchimg
 
 
 def main(): 
