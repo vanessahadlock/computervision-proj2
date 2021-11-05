@@ -206,14 +206,13 @@ def alignImages(img1, img2, correspondances, RANSAC):
     src_pts = np.array(src_pts)
     dst_pts = np.array(dst_pts)   
 
-    print(type(src_pts))
-
-    #keypoints1: np.ndarray = [correspondances[1], correspondances[2]]
-    #keypoints2: np.ndarray = [correspondances[3], correspondances[4]]
-
-    print(f'src_pts: {src_pts}')
-    print(f'dst_pts: {dst_pts}')
+    #print(f'src_pts: {src_pts}')
+    #print(f'dst_pts: {dst_pts}')
  
+    # pick four random correlated points, two from the source image and two from destination
+    src_keypoints = [src_pts[20], src_pts[40]]
+    dst_keypoints = [dst_pts[20], src_pts[40]]]
+
     # # Draw top matches
     # imMatches = cv2.drawMatches(img1, keypoints1, img2, keypoints2, correspondances, None)
     # cv2.imwrite("matches.jpg", imMatches)
@@ -233,7 +232,7 @@ def alignImages(img1, img2, correspondances, RANSAC):
     # get the 3x3 transformation homography 
 
     if bool(RANSAC):
-        H, mask = cv2.findHomography(src_pts, dst_pts, cv2.RANSAC)
+        H, mask = cv2.findHomography(src_keypoints, dst_keypoints, cv2.RANSAC)
 
     else:
         H, mask = cv2.findHomography(src_pts, dst_pts)
@@ -242,8 +241,28 @@ def alignImages(img1, img2, correspondances, RANSAC):
     # Print estimated homography
     print("Estimated homography : \n",  H)
 
+    src_good_points = []
+    dst_good_points = []
+
+    # arbitrary distance threshold that the points need to be within from the homography
+    # to be considered good points
+    dist_threshold = 0.6 
+
+    # need to determine what points are good my calculating their distance from the
+    # homography line using the distance formula
+    for points in dst_pts and src_pts:
+        
+        # ?? don't think this is right
+        distance = np.norm(np.cross(H, H - src_pts[points]))/(np.norm(H))
+
+        if distance < dist_threshold:
+            src_good_points[points] = src_pts[points]
+            dst_good_points[points] = dst_pts[points]
+
+
+
     # inliers of the RANSAC
-    matchesMask = mask.ravel().tolist()
+    # matchesMask = mask.ravel().tolist()
 
     # get the size of image 1 
     height, width = img1.shape[:-1]
