@@ -2,10 +2,13 @@
 # Vanessa Hadlock, Stav Rones
 
 import numpy as np
-from numpy.fft import fft2, ifft2
 import cv2
 import matplotlib.pyplot as plt
-import math
+from numpy.core.fromnumeric import ndim
+
+##################################################
+#################### COPRNERS ####################
+##################################################
 
 # Finds the corner of an image using Harris algorithm
 def harrisCorners(img, wsize, alpha, threshold):
@@ -100,15 +103,107 @@ def harrisNMS(img, alpha, wSizeHarris, wSizeNMS, threshold):
         
     return cornerImg
 
+# use cv2.cornerHarris, threshold by 10%, cv2.cornerSubPix
+def cvCorners(img):
+        
+    grey = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    grey = np.float32(grey)
+
+    # find Harris corners
+    blockSize = 2 
+    ksize = 3
+    k = 0.04 
+    corner_img = cv2.cornerHarris(grey, blockSize, ksize, k)
+
+    cv2.imwrite("test.jpg", corner_img)
+
+    #result is dilated for marking the corners
+    corner_img = cv2.dilate(corner_img, None)
+
+    cv2.imwrite("test_dilated.jpg", corner_img)
+
+    # Threshold for an optimal value, it may vary depending on the image.
+    thres = corner_img.max() * 0.01
+    ret, corner_img = cv2.threshold(corner_img, thres, 255, 0)
+
+    # img[corner_img > 0.01 * corner_img.max() ]= [0,0,255]
+
+    cv2.imwrite("test_threshold.jpg", corner_img)
+
+    # Conver the image back into 8 bit integers
+    corner_img = np.uint8(corner_img)
+
+    # define the criteria to stop and refine the corners
+    ret, labels, stats, centroids = cv2.connectedComponentsWithStats(corner_img)
+    criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 100, 0.001)
+
+    corners = cv2.cornerSubPix(corner_img, np.float32(centroids),(5,5),(-1,-1),criteria)
+
+    # Now draw the corners onto the image 
+    res = np.hstack((centroids,corners))
+    res = np.int0(res)
+
+    ret = np.zeros_like(grey)
+    # img[res[:,1],res[:,0]]= [0,0,255]
+    ret[res[:,3],res[:,2]] = 255
+
+    return ret
+
+##################################################
+################# CORRESPONDENCE #################
+##################################################
+
+# uses cv2.ORB for feature detection, and cv2.BFMatcher for matching
+def bfMatcher(img1, img2):
+
+     ### Find Keypoints ###
+
+    orb = cv2.ORB_create(nfeatures=500)
+
+    kp1, des1 = orb.detectAndCompute(img1, None)
+    kp2, des2 = orb.detectAndCompute(img2, None)
+
+    orb_img1 = cv2.drawKeypoints(img1, kp1, None)
+    cv2.imwrite("orb1.jpg", orb_img1)
+
+    orb_img2 = cv2.drawKeypoints(img2, kp2, None)
+    cv2.imwrite("orb2.jpg", orb_img2)
+
+    # matcher takes normType, which is set to cv2.NORM_L2 for SIFT and SURF, cv2.NORM_HAMMING for ORB, FAST and BRIEF
+    bf = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=True)
+    matches = bf.match(des1, des2)
+    matches = sorted(matches, key=lambda x: x.distance)
+
+    # convert matches to src_pts and dst_pts
+    srcMask = []
+    dstMask = []
+    for match in matches[0:50]:
+        srcMask.append(match.queryIdx)
+        dstMask.append(match.trainIdx)
+
+    src_pts = cv2.KeyPoint_convert(kp1, srcMask)
+    dst_pts = cv2.KeyPoint_convert(kp2, dstMask)
+
+    return np.int16(np.hstack((src_pts, dst_pts)))
+
+    
+    # # draw first 50 matches
+    # match_img = cv2.drawMatches(img1, kp1, img2, kp2, matches[:50], None)
+
+    # cv2.imwrite("cv_matches.jpg", match_img)
+
+# Computes the SSD of two arrays
 def SSD(f, g):
     return np.sum((f - g) ** 2)
 
+# Computes the Cross Corellation of two arrays
 def CC(f, g):
     f = np.int32(f)
     g = np.int32(g)
 
     return np.sum(f * g)
 
+# Computes the Normalized Cross Corellation of two arrays
 def NCC(f, g):
 
     f = np.int32(f)
@@ -133,10 +228,24 @@ def NCC(f, g):
 
     return np.sum((f / fmag) * (g / gmag))
 
-def correspondanceNCC(img1, img2, corners_img1, corners_img2, wsize, threshold):
+# Layers the corners on top of the orignial image in red
+def addCornertoImage(img, cornerImg, outfilename):
 
-    img1 = cv2.cvtColor(img2, cv2.COLOR_BGR2GRAY)
-    img2 = cv2.cvtColor(img2, cv2.COLOR_BGR2GRAY)
+    h, w, _ = img.shape
+    for y in range(h):
+        for x in range(w):
+
+            if cornerImg[y,x] != 0:
+                img[y,x] = [0,255,0]
+
+    cv2.imwrite(outfilename, img)
+    
+    return
+
+# Returns a list of elements [x1,y1,x2,y2] where (x1,y1) in img1 corresponds to (x2,y2) in img2
+def correspondences(img1, img2, corners_img1, corners_img2, wsize, threshold, algo):
+
+    # get the coordinates of the corners in img1
 
     if wsize % 2 == 0:
         wsize += 1
@@ -147,7 +256,7 @@ def correspondanceNCC(img1, img2, corners_img1, corners_img2, wsize, threshold):
 
     corners1 = []
     for y1 in range(offset, h1 - offset):
-        for x1 in range(offset, h1 - offset):
+        for x1 in range(offset, w1 - offset):
             if corners_img1[y1][x1] == 255:
                 corners1.append([y1, x1])
 
@@ -157,9 +266,13 @@ def correspondanceNCC(img1, img2, corners_img1, corners_img2, wsize, threshold):
             if corners_img2[y2][x2] == 255:
                 corners2.append([y2, x2])
 
-    correspondances = []
+    # for each corner in img1, find the corner in img2 that is most similar
+
+    img1 = cv2.cvtColor(img2, cv2.COLOR_BGR2GRAY)
+    img2 = cv2.cvtColor(img2, cv2.COLOR_BGR2GRAY)
+
+    ret = []
     ncc = []
-    count = 0
     for coord1 in corners1:
 
         nccList = []
@@ -171,126 +284,116 @@ def correspondanceNCC(img1, img2, corners_img1, corners_img2, wsize, threshold):
             w1 = img1[y1 - offset : y1 + offset + 1, x1 - offset : x1 + offset + 1]
             w2 = img2[y2 - offset : y2 + offset + 1, x2 - offset : x2 + offset + 1]
 
-            # nccList.append(NCC(w1, w2))
-            nccList.append(SSD(w1, w2))       
+            if algo == "SSD":
+                nccList.append(SSD(w1, w2))
+            if algo == "CC":
+                nccList.append(CC(w1, w2))
+            if algo == "NCC":
+                nccList.append(NCC(w1, w2))
 
         # print(f'nccList:\n{np.round(nccList, 5)}\n')
 
-        # nccMax = max(nccList)
-        # print(f'nccMax:\n{nccMax}\n')
-        # print(f'nccList.index(nccMax):\n{nccList.index(nccMax)}\n')
+        if algo == "SSD":
 
-        # if nccMax > threshold:
-        #     pt2 = corners2[nccList.index(nccMax)]
-        #     correspondences.append(coord1 + pt2)
-        #     ncc.append(nccMax)
+            nccMin = min(nccList)
 
-        nccMin = min(nccList)
-        # print(f'nccMin:\n{nccMin}\n')
-        # print(f'nccList.index(nccMin):\n{nccList.index(nccMin)}\n')
+            if (nccMin < threshold) | (threshold == 0):
+                pt2 = corners2[nccList.index(nccMin)]
+                ret.append(coord1[::-1] + pt2[::-1])
+                ncc.append(nccMin)
+        else:
+                
+            nccMax = max(nccList)
 
-        if nccMin > threshold:
-            pt2 = corners2[nccList.index(nccMin)]
-            correspondances.append(coord1 + pt2)
-            ncc.append(nccMin)
+            if nccMax > threshold:
+                pt2: np.ndarray = corners2[nccList.index(nccMax)]
+                ret.append(coord1[::-1] + pt2[::-1])
+                ncc.append(nccMax)
 
-        # count += 1
-        # if count == 5:
-        #     return correspondences
+    return ret
 
+##################################################
+#################### MATCHING ####################
+##################################################
 
-    # print(f'correspondence:\n{correspondence}\n')
-    # print(f'ncc:\n{ncc}\n')
+# compute homography for 
+def drawMatches(img1, img2, correspondences):
 
-    return correspondances
-
-def alignImages(img1, img2, correspondances, RANSAC):
-
-    ### convert format of corresponding points ###
-    
+    ###  get the 3x3 transformation homography ###
     dst_pts = []
     src_pts = []
+    kp1 = []
+    kp2 = []
 
-    for list in correspondances:
-            src_pts.append([list[0], list[1]])
-            dst_pts.append([list[2], list[3]])
+    for row in correspondences:
 
+            pt1 = [row[0], row[1]]
+            pt2 = [row[2], row[3]]
+
+            src_pts.append(pt1)
+            dst_pts.append(pt2)
+
+            kp1.append(cv2.KeyPoint(x=pt1[0], y=pt1[1], size=1))
+            kp2.append(cv2.KeyPoint(x=pt2[0], y=pt2[1], size=1))
+
+    print(src_pts)
+            
     src_pts = np.array(src_pts)
     dst_pts = np.array(dst_pts)   
 
-    # print(f'src_pts: {src_pts}')
-    # print(f'dst_pts: {dst_pts}')
+    # Estimate the homography matrix using of four pairs each (collinear pairs 
+    # are discarded) and a simple least-squares algorithm, and then compute the 
+    # quality/goodness of the computed homography aka number of inliers\
+    # Homography is then refined further (using inliers only in case of a 
+    # robust method) with the Levenberg-Marquardt method to reduce the 
+    # re-projection error even more
 
-    ###  get the 3x3 transformation homography ###
+    correspondences = sorted(correspondences, key=lambda x: x[2])
+    for row in correspondences:
+        print(row)
 
-    if bool(RANSAC):
-        H, mask = cv2.findHomography(src_pts, dst_pts, cv2.RANSAC)
-    else:
-        H, mask = cv2.findHomography(src_pts, dst_pts)
+    H, mask = cv2.findHomography(src_pts, dst_pts, cv2.RANSAC)
 
-    print("Estimated homography : \n",  np.round(H, 3))
+    np.set_printoptions(suppress=True)
+    print("Estimated homography : \n", H)
 
-    ### inliers of the RANSAC ###
-    matchesMask = mask.ravel().tolist()
+    ###  Draw matches between images ###
 
-    print(f'matchesMask:\n{matchesMask}\n')
+    print(len(kp1))
 
-    # get the size of image 1 
-    height, width = img1.shape[:-1]
+    goodMatches = []
+    kp1_inliers = []
+    kp2_inliers = []
+    count = 0
+    for i in range(len(correspondences)):
+        if mask[i] == 1:
+            kp1_inliers.append(kp1[i])
+            kp2_inliers.append(kp2[i])
+            goodMatches.append(cv2.DMatch(_imgIdx=0, _queryIdx=count, _trainIdx=count, _distance=0))
+            count += 1
 
-    # creating a copy of img1 using its dimensions  
-    imgcopy = np.float32([ [0,0],[0,height-1],[width-1,height-1],[width-1,0] ]).reshape(-1,1,2)
-    
-    # run perspective transform to warp the img copy on the output
-    # using the homograpy 
-    dst = cv2.perspectiveTransform(imgcopy, H)
+    print(len(kp1_inliers))
 
-    print(f'dst:\n{dst}\n')
+    matches_img = cv2.drawMatches(img1, kp1_inliers, img2, kp2_inliers, goodMatches, None)
+    cv2.imwrite("matches.jpg", matches_img)
 
-    img2 = cv2.polylines(img2,[np.int32(dst)],True,255,3, cv2.LINE_AA)
-
-    cv2.imwrite("test3.jpg", img2)
-
-    # draw the inliners of the RANSAC  
-    draw_params = dict(matchColor = (0,255,0), # draw matches in green color
-                   singlePointColor = None,
-                   matchesMask = matchesMask, # draw only inliers
-                   flags = 2)
-
-    keypoints1 = src_pts
-    keypoints2 = dst_pts
-    # draw the matches between the two images 
-    matchimg = cv2.drawMatches(img1, keypoints1, img2, keypoints2, correspondances, outImg = imgcopy, matchesThickness = 0.7, singlePointColor = 'green',  matchColor = 'blue')
-
-    plt.imshow(matchimg, 'gray'), plt.show()
-
-    return matchimg
+    return
 
 def main(): 
 
-    test = np.array([[0,0,0,0,8],[0,5,3,0,0],[0,3,0,4,0],[0,0,6,0,2],[0,0,0,0,0]])
-
-    print(f'test:\n{test}')
-
-    h,w = test.shape
-    wsize = 3
-    offset = wsize//2
-
-    for y in range(offset, h-offset):
-        for x in range(offset, w-offset):
-            window = test[y-offset:y+offset+1, x-offset:x+offset+1]
-
-            window[window < np.max(window)] = 1
-
-
-    print(f'test:\n{test}')
-
     ##################################################
-    ############### Read in two images ###############
+    ######## Read in two images from each set ########
     ##################################################
 
-    img1: np.ndarray = cv2.imread('DanaHallWay1/DSC_0281.jpg') 
-    img2: np.ndarray = cv2.imread('DanaHallWay1/DSC_0282.jpg')
+    img1_filename = "DSC_0281"
+    img2_filename = "DSC_0282"
+    img3_filename = "DSC_0308"
+    img4_filename = "DSC_0309"
+
+    img1: np.ndarray = cv2.imread(f'DanaHallWay1/{img1_filename}.jpg') 
+    img2: np.ndarray = cv2.imread(f'DanaHallWay1/{img2_filename}.jpg')
+    img3: np.ndarray = cv2.imread(f'DanaOffice/{img3_filename}.jpg')
+    img4: np.ndarray = cv2.imread(f'DanaOffice/{img4_filename}.jpg')
 
     ##################################################
     ### Detect corner pixels using Harris with NMS ###
@@ -302,54 +405,98 @@ def main():
     hThreshold = 400000 # threshold for defining what is a corner, if R > threshold
 
     print("Finding corners for img1...")
-    corners_img1 = harrisNMS(img1, alpha, wSizeHarris, wSizeNMS, hThreshold)
-    cv2.imwrite("test1.jpg", corners_img1)
+    corners_img1 = cvCorners(img1)
+    cv2.imwrite(f'corners_img1.jpg', corners_img1)
 
     print("Finding corners for img2...")
-    corners_img2 = harrisNMS(img2, alpha, wSizeHarris, wSizeNMS, hThreshold)
-    cv2.imwrite("test2.jpg", corners_img2)
+    corners_img2 = cvCorners(img2)
+    cv2.imwrite(f'corners_img2.jpg', corners_img2)
 
-    return
+    print("Finding corners for img3...")
+    corners_img3 = cvCorners(img3)
+    cv2.imwrite(f'corners_img3.jpg', corners_img3)
+
+    print("Finding corners for img4...")
+    corners_img4 = cvCorners(img4)
+    cv2.imwrite(f'corners_img4.jpg', corners_img4)
+
+    # print("Finding corners for img1...")
+    # corners_img1 = harrisNMS(img1, alpha, wSizeHarris, wSizeNMS, hThreshold)
+    # cv2.imwrite(f'corners_img1.jpg', corners_img1)
+    # addCornertoImage(img1, corners_img1, f"{img1_filename}_corners.jpg")
+    
+    # print("Finding corners for img2...")
+    # corners_img2 = harrisNMS(img2, alpha, wSizeHarris, wSizeNMS, hThreshold)
+    # cv2.imwrite(f'corners_img2.jpg', corners_img2)
+    # addCornertoImage(img2, corners_img2, f"{img2_filename}_corners.jpg")
+
+    # print("Finding corners for img3...")
+    # corners_img3 = harrisNMS(img3, alpha, wSizeHarris, wSizeNMS, hThreshold)
+    # cv2.imwrite(f'corners_img3.jpg', corners_img3)
+    # addCornertoImage(img3, corners_img3, f"{img3_filename}_corners.jpg")
+    
+    # print("Finding corners for img4...")
+    # corners_img4 = harrisNMS(img4, alpha, wSizeHarris, wSizeNMS, hThreshold)
+    # cv2.imwrite(f'corners_img4.jpg', corners_img4)
+    # addCornertoImage(img4, corners_img4, f"{img4_filename}_corners.jpg")
+
 
     ##################################################
-    ######### Find correspondences using NCC #########
+    ############## Find correspondences ##############
     ##################################################
 
-    wNCC = 7 # window size for ncc
-    nccThreshold = 0 # threshold for defining if two windows match
+    correspondences1 = bfMatcher(img1, img2)
 
-    corners_img1 = cv2.imread("test1.jpg", cv2.IMREAD_GRAYSCALE)
-    corners_img2 = cv2.imread("test2.jpg", cv2.IMREAD_GRAYSCALE)
+    print("correspondences:")
+    print(correspondences1)
 
-    # print(corners_img1)
-    # print("")
-    # print(print(corners_img2))
+    drawMatches(img1, img2, correspondences1)
 
-    print("Finding correspondences...\n")
-    correspondances = correspondanceNCC(img1, img2, corners_img1, corners_img2, wNCC, nccThreshold)
-    print(f'correspondences:\n{correspondances}\n')   
+    # algo = "SSD"
 
+    # if algo == "SSD":
+    #     w = 7
+    #     thres = 0
+    # if algo == "CC":
+    #     w = 7
+    #     thres = 0
+    # if algo == "NCC":
+    #     w = 7
+    #     thres = 0
+
+    # print("Finding correspondences for set 1...")
+    # correspondences1 = correspondences(img1, img2, corners_img1, corners_img2, w, thres, algo)
+    # # print(f'correspondences1:\n{correspondences1}\n')
+    
+    # print("Finding correspondences for set 2...")
+    # correspondences2 = correspondences(img1, img2, corners_img1, corners_img2, w, thres, algo)
+    # # print(f'correspondences2:\n{correspondences2}\n')
+       
     ##################################################
     ######## Estimate homography using RANSAC ########
     ##################################################
+
+
 
     ##################################################
     ############# Align images into one ##############
     ##################################################
 
-    print("Aligning images ...")
+    # print("Aligning images ...")
     # Takes in the two images and the correspondance list 
     # as well as true or false for RANSAC to determine if
     # we want to remove the outliers or not
-    RANSAC = True
 
-    panorama = alignImages(img1, img2, correspondances, RANSAC)
+    
+
+    # alignImages(img1, img2, correspondences1, RANSAC)
+
+    return
 
     # Write aligned image to disk.
     outFilename = "panorama.jpg"
     print("Saving aligned image : ", outFilename)
     cv2.imwrite(outFilename, panorama)
-
 
 if __name__ == "__main__":
     main()
