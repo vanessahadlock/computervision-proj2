@@ -428,6 +428,8 @@ def warpimage(img1, img2, H, crop):
     # this will place the first image into the background before adding in the second image
     output_img = cv2.warpPerspective(img1, H_translation.dot(H), (x_max-x_min, y_max-y_min))
 
+    cv2.imwrite("out1.jpg", output_img)
+
     # gray1= cv2.cvtColor(output_img, cv2.COLOR_BGR2GRAY)
     # gray1 = np.float32(gray1)
 
@@ -443,8 +445,11 @@ def warpimage(img1, img2, H, crop):
     #             #beta = 1.0 - alpha
     #             dst[i, j] = cv2.addWeighted(gray1[i, j], 0.5, gray2[i, j], 0.5, 0.0)
 
-    output_img[translation_dist[1] : rows1 + translation_dist[1], translation_dist[0] : cols1 + translation_dist[0]] = (output_img[44:, 143:, :] / img2[:, :, :]) / 2
-    
+    # output_img[translation_dist[1] : rows1 + translation_dist[1], translation_dist[0] : cols1 + translation_dist[0]] = (output_img[44:, 143:, :] / img2[:, :, :]) / 2
+    output_img[translation_dist[1] : rows1 + translation_dist[1], translation_dist[0] : cols1 + translation_dist[0]] = img2
+
+    cv2.imwrite("warpedimg.jpg", output_img)
+
     # Cropping an image 
 
     print("cropping...")
@@ -541,36 +546,36 @@ def main():
     # cv2.imwrite(f'corners_img2.jpg', corners_img2)
     # addCornertoImage(img2, corners_img2, f"{img2_filename}_corners.jpg")
 
-    # print("Finding corners for img3...")
-    # corners_img3 = harrisNMS(img3, alpha, wSizeHarris, wSizeNMS, hThreshold)
-    # cv2.imwrite(f'corners_img3.jpg', corners_img3)
-    # addCornertoImage(img3, corners_img3, f"{img3_filename}_corners.jpg")
+    print("Finding corners for img5...")
+    corners_img5 = harrisNMS(img5, alpha, wSizeHarris, wSizeNMS, hThreshold)
+    cv2.imwrite(f'corners_img5.jpg', corners_img5)
+    addCornertoImage(img5, corners_img5, f"{img5_filename}_corners.jpg")
     
-    # print("Finding corners for img4...")
-    # corners_img4 = harrisNMS(img4, alpha, wSizeHarris, wSizeNMS, hThreshold)
-    # cv2.imwrite(f'corners_img4.jpg', corners_img4)
-    # addCornertoImage(img4, corners_img4, f"{img4_filename}_corners.jpg")
+    print("Finding corners for img4...")
+    corners_img4 = harrisNMS(img4, alpha, wSizeHarris, wSizeNMS, hThreshold)
+    cv2.imwrite(f'corners_img4.jpg', corners_img4)
+    addCornertoImage(img4, corners_img4, f"{img4_filename}_corners.jpg")
 
 
     ##################################################
     ################ 2 Hallway Images ################
     ##################################################
 
-    correspondences1 = bfMatcher(img1, img2)
+    # correspondences1 = bfMatcher(img1, img2)
 
-    homography1 = drawMatches(img1, img2, correspondences1)
+    # homography1 = drawMatches(img1, img2, correspondences1)
 
-    hallway_crop = 2
-    hallway = warpimage(img1, img2, homography1, hallway_crop)
-    cv2.imwrite("hallway_blendingtest.jpg", hallway)
+    # hallway_crop = 2
+    # hallway = warpimage(img1, img2, homography1, hallway_crop)
+    # cv2.imwrite("hallway_blendingtest.jpg", hallway)
     # cv2.imwrite("hallway_2warpedimg.jpg", hallway)
 
     ##################################################
     ################ 3 Hallway Images ################
     ##################################################
 
-    correspondences2 = bfMatcher(hallway, img3)
-    homography2 = drawMatches(hallway, img3, correspondences2)
+    # correspondences2 = bfMatcher(hallway, img3)
+    # homography2 = drawMatches(hallway, img3, correspondences2)
 
     #result = warpimage(hallway, img3, homography2, hallway_crop)
     #cv2.imwrite("hallway_3warpedimg.jpg", result)
