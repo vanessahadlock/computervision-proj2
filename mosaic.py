@@ -428,23 +428,22 @@ def warpimage(img1, img2, H, crop):
     # this will place the first image into the background before adding in the second image
     output_img = cv2.warpPerspective(img1, H_translation.dot(H), (x_max-x_min, y_max-y_min))
 
-    gray1= cv2.cvtColor(output_img, cv2.COLOR_BGR2GRAY)
-    gray1 = np.float32(gray1)
+    # gray1= cv2.cvtColor(output_img, cv2.COLOR_BGR2GRAY)
+    # gray1 = np.float32(gray1)
 
-    gray2 = cv2.cvtColor(img2, cv2.COLOR_BGR2GRAY)
-    gray2 = np.float32(gray2)
+    # gray2 = cv2.cvtColor(img2, cv2.COLOR_BGR2GRAY)
+    # gray2 = np.float32(gray2)
 
-    for i in range(gray1[translation_dist[1], rows1 + translation_dist[1]]):
-        for j in range(gray1[translation_dist[0], rows1 + translation_dist[1]]):
-            if gray1[i, j] == (255, 255, 255):
-                dst = gray2[i, j]
-            else:
-                #alpha = 1.0/(i + 1)
-                #beta = 1.0 - alpha
-                dst[i, j] = cv2.addWeighted(gray1[i, j], 0.5, gray2[i, j], 0.5, 0.0)
+    # for i in range(gray1[translation_dist[1], rows1 + translation_dist[1]]):
+    #     for j in range(gray1[translation_dist[0], rows1 + translation_dist[1]]):
+    #         if gray1[i, j] == (255, 255, 255):
+    #             dst = gray2[i, j]
+    #         else:
+    #             #alpha = 1.0/(i + 1)
+    #             #beta = 1.0 - alpha
+    #             dst[i, j] = cv2.addWeighted(gray1[i, j], 0.5, gray2[i, j], 0.5, 0.0)
 
-
-    # output_img[translation_dist[1] : rows1 + translation_dist[1], translation_dist[0] : cols1 + translation_dist[0]] = average
+    output_img[translation_dist[1] : rows1 + translation_dist[1], translation_dist[0] : cols1 + translation_dist[0]] = (output_img[44:, 143:, :] / img2[:, :, :]) / 2
     
     # Cropping an image 
 
@@ -458,7 +457,7 @@ def warpimage(img1, img2, H, crop):
         # cropping for the hallway
         cropped_image = output_img[22:362, 7:655, 0:3]
 
-    return dst
+    return output_img
 
 
 def main(): 
