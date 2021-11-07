@@ -5,6 +5,8 @@ import numpy as np
 import cv2
 import matplotlib.pyplot as plt
 from numpy.core.fromnumeric import ndim
+import imutils
+
 
 ##################################################
 #################### COPRNERS ####################
@@ -388,7 +390,7 @@ def drawMatches(img1, img2, correspondences):
 #           img2, second image
 #           H, the 3x3 homography
 # @returns  out_img, the panorama output image
-def warpimage(img1, img2, H):
+def warpimage(img1, img2, H, crop):
 
     # finding the size of the two images to determine the output image size when the
     # two images are warped together
@@ -423,13 +425,24 @@ def warpimage(img1, img2, H):
 
     # warp the first image onto the second image, using the transformation matrix
     # passing in the first image, the transformation matrix, and the width/height of the output image
+    # this will place the first image into the background before adding in the second image
     output_img = cv2.warpPerspective(img1, H_translation.dot(H), (x_max-x_min, y_max-y_min))
 
     output_img[translation_dist[1]:rows1+translation_dist[1], translation_dist[0]:cols1+translation_dist[0]] = img2
+    
+    # Cropping an image 
 
-    cv2.imwrite("warpedimg.jpg", output_img)
+    print("cropping...")
 
-    return output_img
+    if crop == 1:
+        # cropping for the office 
+        cropped_image = output_img[38:378, 7:648, 0:3]
+
+    elif crop == 2:
+        # cropping for the hallway
+        cropped_image = output_img[22:362, 7:655, 0:3]
+
+    return cropped_image
 
 
 def main(): 
@@ -440,13 +453,30 @@ def main():
 
     img1_filename = "DSC_0281"
     img2_filename = "DSC_0282"
-    img3_filename = "DSC_0308"
-    img4_filename = "DSC_0309"
+    img3_filename = "DSC_0283"
+
+    img4_filename = "DSC_0308"
+    img5_filename = "DSC_0309"
+    img6_filename = "DSC_0310"
+    img7_filename = "DSC_0311"
+
 
     img1: np.ndarray = cv2.imread(f'DanaHallWay1/{img1_filename}.jpg') 
     img2: np.ndarray = cv2.imread(f'DanaHallWay1/{img2_filename}.jpg')
-    img3: np.ndarray = cv2.imread(f'DanaOffice/{img3_filename}.jpg')
+    img3: np.ndarray = cv2.imread(f'DanaHallWay1/{img3_filename}.jpg')
     img4: np.ndarray = cv2.imread(f'DanaOffice/{img4_filename}.jpg')
+    img5: np.ndarray = cv2.imread(f'DanaOffice/{img5_filename}.jpg')
+    img6: np.ndarray = cv2.imread(f'DanaOffice/{img6_filename}.jpg')
+    img7: np.ndarray = cv2.imread(f'DanaOffice/{img7_filename}.jpg')
+
+
+    # img1 = cv2.GaussianBlur(img1, (5,5), 0)
+    # img2 = cv2.GaussianBlur(img2, (5,5), 0)
+    # img3 = cv2.GaussianBlur(img3, (5,5), 0)
+    # img4 = cv2.GaussianBlur(img4, (5,5), 0)
+    # img5 = cv2.GaussianBlur(img5, (5,5), 0)
+    # img6 = cv2.GaussianBlur(img6, (5,5), 0)
+    # img7 = cv2.GaussianBlur(img7, (5,5), 0)
 
     ##################################################
     ### Detect corner pixels using Harris with NMS ###
@@ -473,6 +503,19 @@ def main():
     corners_img4 = cvCorners(img4)
     cv2.imwrite(f'corners_img4.jpg', corners_img4)
 
+    print("Finding corners for img5...")
+    corners_img5 = cvCorners(img5)
+    cv2.imwrite(f'corners_img5.jpg', corners_img5)
+
+    print("Finding corners for img6...")
+    corners_img6 = cvCorners(img6)
+    cv2.imwrite(f'corners_img6.jpg', corners_img6)
+
+    print("Finding corners for img7...")
+    corners_img7 = cvCorners(img7)
+    cv2.imwrite(f'corners_img7.jpg', corners_img7)
+
+
     # print("Finding corners for img1...")
     # corners_img1 = harrisNMS(img1, alpha, wSizeHarris, wSizeNMS, hThreshold)
     # cv2.imwrite(f'corners_img1.jpg', corners_img1)
@@ -495,19 +538,53 @@ def main():
 
 
     ##################################################
-    ############## Find correspondences ##############
+    ################ 2 Hallway Images ################
     ##################################################
 
     correspondences1 = bfMatcher(img1, img2)
 
-    # print("correspondences:")
-    # print(correspondences1)
+    homography1 = drawMatches(img1, img2, correspondences1)
 
-    homography = drawMatches(img1, img2, correspondences1)
+    hallway_crop = 2
+    hallway = warpimage(img1, img2, homography1, hallway_crop)
+    cv2.imwrite("hallway_2warpedimg.jpg", hallway)
 
-    warpimage(img1, img2, homography)
+
+    ##################################################
+    ################ 3 Hallway Images ################
+    ##################################################
+
+    correspondences2 = bfMatcher(hallway, img3)
+    homography2 = drawMatches(hallway, img3, correspondences2)
+
+    #result = warpimage(hallway, img3, homography2, hallway_crop)
+    #cv2.imwrite("hallway_3warpedimg.jpg", result)
 
 
+    ###################################################
+    ################# 2 Office Images #################
+    ###################################################
+
+    correspondences3 = bfMatcher(img4, img5)
+
+    homography3 = drawMatches(img4, img5, correspondences3)
+
+    office_crop = 1
+    office = warpimage(img4, img5, homography3, office_crop)
+    cv2.imwrite("office_2warpedimg.jpg", office)
+
+
+    ###################################################
+    ################# 3 Office Images #################
+    ###################################################
+
+    # correspondences4 = bfMatcher(office, img6)
+
+    # homography4 = drawMatches(office, img6, correspondences3)
+
+    # office_crop = 1
+    # office = warpimage(office, img6, homography4, office_crop)
+    # cv2.imwrite("office_3warpedimg.jpg", office)
 
     # algo = "SSD"
 
