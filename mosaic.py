@@ -352,7 +352,7 @@ def drawMatches(img1, img2, correspondences):
     for row in correspondences:
         print(row)
 
-    H, mask = cv2.findHomography(src_pts, dst_pts, cv2.RANSAC)
+    H, mask = cv2.findHomography(src_pts, dst_pts, cv2.RANSAC, 5.0)
 
     np.set_printoptions(suppress=True)
     print("Estimated homography : \n", H)
@@ -372,12 +372,65 @@ def drawMatches(img1, img2, correspondences):
             goodMatches.append(cv2.DMatch(_imgIdx=0, _queryIdx=count, _trainIdx=count, _distance=0))
             count += 1
 
-    print(len(kp1_inliers))
-
     matches_img = cv2.drawMatches(img1, kp1_inliers, img2, kp2_inliers, goodMatches, None)
     cv2.imwrite("matches.jpg", matches_img)
+    
 
-    return
+    return H
+
+# Function takes in the two images that need to be warped together
+# and the Homography generated from the 4 corresponding points in 
+# the two images. The function determines the size of the output image,
+# copies image 2 into the output image, and then warps image one into the
+# output image using the homography matrix. The images are then blended
+# using a feather technique.
+# @params   img1, first image
+#           img2, second image
+#           H, the 3x3 homography
+# @returns  out_img, the panorama output image
+def warpimage(img1, img2, H):
+
+    # finding the size of the two images to determine the output image size when the
+    # two images are warped together
+    rows1, cols1 = img1.shape[:-1]
+    rows2, cols2 = img2.shape[:-1]    
+
+    # all the pixel coordinates of the reference image (img 1)
+    list_of_points_1 = np.float32([[0,0], [0, rows1],[cols1, rows1], [cols1, 0]]).reshape(-1, 1, 2)
+
+    # all the pixel coordinates of the second reference image (img 2) that is going to be transformed
+    temp_points = np.float32([[0,0], [0, rows2], [cols2, rows2], [cols2, 0]]).reshape(-1,1,2)
+
+    # calculate the transformation using the refined H matrix and the points in the 
+    # second image to map where they need ot be in the first image
+    list_of_points_2 = cv2.perspectiveTransform(temp_points, H)
+
+    # joining the two list of points from the img 1 points and the transformed img 2 points
+    list_of_points = np.concatenate((list_of_points_2, list_of_points_1), axis=0)
+
+    # defining width and the heigh of the ouput image using the number of pixels in
+    # img 1 and img 2 
+    [x_min, y_min] = np.int32(list_of_points.min(axis=0).ravel() - 0.5)
+    [x_max, y_max] = np.int32(list_of_points.max(axis=0).ravel() + 0.5)
+    
+    # defining the translation 
+    translation_dist = [-x_min,-y_min]
+    print("translation dist: ", translation_dist)
+
+    H_translation = np.array([[1, 0, translation_dist[0]], [0, 1, translation_dist[1]], [0, 0, 1]])
+
+    print("H translation: ", H_translation)
+
+    # warp the first image onto the second image, using the transformation matrix
+    # passing in the first image, the transformation matrix, and the width/height of the output image
+    output_img = cv2.warpPerspective(img1, H_translation.dot(H), (x_max-x_min, y_max-y_min))
+
+    output_img[translation_dist[1]:rows1+translation_dist[1], translation_dist[0]:cols1+translation_dist[0]] = img2
+
+    cv2.imwrite("warpedimg.jpg", output_img)
+
+    return output_img
+
 
 def main(): 
 
@@ -447,10 +500,14 @@ def main():
 
     correspondences1 = bfMatcher(img1, img2)
 
-    print("correspondences:")
-    print(correspondences1)
+    # print("correspondences:")
+    # print(correspondences1)
 
-    drawMatches(img1, img2, correspondences1)
+    homography = drawMatches(img1, img2, correspondences1)
+
+    warpimage(img1, img2, homography)
+
+
 
     # algo = "SSD"
 
@@ -491,12 +548,11 @@ def main():
 
     # alignImages(img1, img2, correspondences1, RANSAC)
 
-    return
 
     # Write aligned image to disk.
-    outFilename = "panorama.jpg"
-    print("Saving aligned image : ", outFilename)
-    cv2.imwrite(outFilename, panorama)
+    # outFilename = "panorama.jpg"
+    # print("Saving aligned image : ", outFilename)
+    # cv2.imwrite(outFilename, panorama)
 
 if __name__ == "__main__":
     main()
