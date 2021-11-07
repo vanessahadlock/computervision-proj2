@@ -186,13 +186,13 @@ def bfMatcher(img1, img2):
     src_pts = cv2.KeyPoint_convert(kp1, srcMask)
     dst_pts = cv2.KeyPoint_convert(kp2, dstMask)
 
+    # # draw first 50 matches
+    match_img = cv2.drawMatches(img1, kp1, img2, kp2, matches, None)
+
+    cv2.imwrite("cv_matches.jpg", match_img)
+
     return np.int16(np.hstack((src_pts, dst_pts)))
 
-    
-    # # draw first 50 matches
-    # match_img = cv2.drawMatches(img1, kp1, img2, kp2, matches[:50], None)
-
-    # cv2.imwrite("cv_matches.jpg", match_img)
 
 # Computes the SSD of two arrays
 def SSD(f, g):
@@ -456,13 +456,13 @@ def warpimage(img1, img2, H, crop):
 
     if crop == 1:
         # cropping for the office 
-        cropped_image = output_img[38:378, 7:648, 0:3]
+        cropped_image = output_img[50:379, 7:648, 0:3]
 
     elif crop == 2:
         # cropping for the hallway
         cropped_image = output_img[22:362, 7:655, 0:3]
 
-    return output_img
+    return cropped_image
 
 
 def main(): 
@@ -546,28 +546,27 @@ def main():
     # cv2.imwrite(f'corners_img2.jpg', corners_img2)
     # addCornertoImage(img2, corners_img2, f"{img2_filename}_corners.jpg")
 
-    print("Finding corners for img5...")
-    corners_img5 = harrisNMS(img5, alpha, wSizeHarris, wSizeNMS, hThreshold)
-    cv2.imwrite(f'corners_img5.jpg', corners_img5)
-    addCornertoImage(img5, corners_img5, f"{img5_filename}_corners.jpg")
+    # print("Finding corners for img5...")
+    # corners_img5 = harrisNMS(img5, alpha, wSizeHarris, wSizeNMS, hThreshold)
+    # cv2.imwrite(f'corners_img5.jpg', corners_img5)
+    # addCornertoImage(img5, corners_img5, f"{img5_filename}_corners.jpg")
     
-    print("Finding corners for img4...")
-    corners_img4 = harrisNMS(img4, alpha, wSizeHarris, wSizeNMS, hThreshold)
-    cv2.imwrite(f'corners_img4.jpg', corners_img4)
-    addCornertoImage(img4, corners_img4, f"{img4_filename}_corners.jpg")
+    # print("Finding corners for img4...")
+    # corners_img4 = harrisNMS(img4, alpha, wSizeHarris, wSizeNMS, hThreshold)
+    # cv2.imwrite(f'corners_img4.jpg', corners_img4)
+    # addCornertoImage(img4, corners_img4, f"{img4_filename}_corners.jpg")
 
 
     ##################################################
     ################ 2 Hallway Images ################
     ##################################################
 
-    # correspondences1 = bfMatcher(img1, img2)
+    correspondences1 = bfMatcher(img1, img2)
 
-    # homography1 = drawMatches(img1, img2, correspondences1)
+    homography1 = drawMatches(img1, img2, correspondences1)
 
-    # hallway_crop = 2
-    # hallway = warpimage(img1, img2, homography1, hallway_crop)
-    # cv2.imwrite("hallway_blendingtest.jpg", hallway)
+    hallway_crop = 2
+    hallway = warpimage(img1, img2, homography1, hallway_crop)
     # cv2.imwrite("hallway_2warpedimg.jpg", hallway)
 
     ##################################################
@@ -585,13 +584,18 @@ def main():
     ################# 2 Office Images #################
     ###################################################
 
-    correspondences3 = bfMatcher(img4, img5)
+    correspondences3 = bfMatcher(img5, img4)
 
-    homography3 = drawMatches(img4, img5, correspondences3)
+    homography3 = drawMatches(img5, img4, correspondences3)
 
     office_crop = 1
-    office = warpimage(img4, img5, homography3, office_crop)
+    office = warpimage(img5, img4, homography3, office_crop)
+
     cv2.imwrite("office_2warpedimg.jpg", office)
+
+    # dst = cv2.addWeighted(office, 1, img2, 1, 0.0)
+    
+    # cv2.imwrite("office_blendingtest.jpg", office)
 
 
     ###################################################
