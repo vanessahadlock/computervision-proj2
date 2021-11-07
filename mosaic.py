@@ -428,7 +428,23 @@ def warpimage(img1, img2, H, crop):
     # this will place the first image into the background before adding in the second image
     output_img = cv2.warpPerspective(img1, H_translation.dot(H), (x_max-x_min, y_max-y_min))
 
-    output_img[translation_dist[1]:rows1+translation_dist[1], translation_dist[0]:cols1+translation_dist[0]] = img2
+    gray1= cv2.cvtColor(output_img, cv2.COLOR_BGR2GRAY)
+    gray1 = np.float32(gray1)
+
+    gray2 = cv2.cvtColor(img2, cv2.COLOR_BGR2GRAY)
+    gray2 = np.float32(gray2)
+
+    for i in range(gray1[translation_dist[1], rows1 + translation_dist[1]]):
+        for j in range(gray1[translation_dist[0], rows1 + translation_dist[1]]):
+            if gray1[i, j] == (255, 255, 255):
+                dst = gray2[i, j]
+            else:
+                #alpha = 1.0/(i + 1)
+                #beta = 1.0 - alpha
+                dst[i, j] = cv2.addWeighted(gray1[i, j], 0.5, gray2[i, j], 0.5, 0.0)
+
+
+    # output_img[translation_dist[1] : rows1 + translation_dist[1], translation_dist[0] : cols1 + translation_dist[0]] = average
     
     # Cropping an image 
 
@@ -442,7 +458,7 @@ def warpimage(img1, img2, H, crop):
         # cropping for the hallway
         cropped_image = output_img[22:362, 7:655, 0:3]
 
-    return cropped_image
+    return dst
 
 
 def main(): 
@@ -547,8 +563,8 @@ def main():
 
     hallway_crop = 2
     hallway = warpimage(img1, img2, homography1, hallway_crop)
-    cv2.imwrite("hallway_2warpedimg.jpg", hallway)
-
+    cv2.imwrite("hallway_blendingtest.jpg", hallway)
+    # cv2.imwrite("hallway_2warpedimg.jpg", hallway)
 
     ##################################################
     ################ 3 Hallway Images ################
