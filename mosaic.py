@@ -8,6 +8,76 @@ import cv2
 ##################### CORNERS ####################
 ##################################################
 
+# Finds the corner of an image using Harris algorithm
+def harrisCorners(img, wsize, alpha, threshold):
+
+    ### Compute I_xx, I_yy, I_xy ###
+    img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+
+    if wsize % 2 == 0:
+        wsize += 1
+    offset = wsize // 2
+
+    I_dx = cv2.Sobel(img, -1, 1, 0, ksize = wsize)
+    I_dy = cv2.Sobel(img, -1, 0, 1, ksize = wsize)
+
+    I_xx = np.square(I_dx)
+    I_yy = np.square(I_dy)
+    I_xy = np.multiply(I_dx, I_dy)
+
+    ### Find cornders using threshold of R ###
+
+    cornerImg = np.zeros_like(img)
+
+    h, w, = img.shape
+    for y in range(offset, h - offset):
+        for x in range(offset, w - offset):
+
+            # Get windows
+            Wxx = I_xx[y - offset : y + offset + 1, x - offset : x + offset + 1]
+            Wyy = I_yy[y - offset : y + offset + 1, x - offset : x + offset + 1]
+            Wxy = I_xy[y - offset : y + offset + 1, x - offset : x + offset + 1]
+
+            # Calculate sum of squares
+            Sxx = Wxx.sum()                
+            Syy = Wyy.sum()    
+            Sxy = Wxy.sum()
+            
+            # Calculate determinant, trace, and corner response
+            det = (Sxx * Syy) - (Sxy ** 2)
+            trace = Sxx + Syy
+            R = det - alpha * (trace ** 2)
+            
+            # If corner response > threshold, add to corner list
+            if R > threshold:
+                cornerImg[y, x] = R  
+                
+    return cornerImg
+
+# Performs NMS on corner imaage given a window size
+def nonMaxSupression(cornerImg, wsize):
+
+    if wsize == 0:
+        return cornerImg
+
+    if wsize % 2 == 0:
+        wsize += 1
+    offset = wsize // 2
+
+    h, w = cornerImg.shape
+    for y in range(offset,  h - offset):
+        for x in range(offset, w - offset):
+
+            rWindow = cornerImg[y - offset : y + offset + 1, x - offset : x + offset + 1]
+
+            rMax = np.max(rWindow)
+
+            if rMax != 0:
+
+                rWindow[rWindow < rMax] = 0
+
+    return cornerImg
+
 # use cv2.cornerHarris, threshold by 10%, cv2.cornerSubPix
 def cvCorners(img):
     
@@ -24,11 +94,10 @@ def cvCorners(img):
     thres = corner_img.max() * 0.01
     corner_img = cv2.dilate(corner_img, None)
     ret, corner_img = cv2.threshold(corner_img, thres, 255, 0)
-    
+
     # use cv2.cornerSubPix to refine the corners
     # This essitially performs NMS
-    corner_img = np.uint8(corner_img)
-    ret, labels, stats, centroids = cv2.connectedComponentsWithStats(corner_img)
+    ret, _, _, centroids = cv2.connectedComponentsWithStats(np.uint8(corner_img))
     criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 100, 0.001)
     corners = cv2.cornerSubPix(corner_img, np.float32(centroids),(5,5),(-1,-1),criteria)
 
@@ -244,7 +313,8 @@ def warpimage(img1, img2, H):
     # passing in the first image, the transformation matrix, and the width/height of the output image
     output_img = cv2.warpPerspective(img1, H_translation.dot(H), (x_max-x_min, y_max-y_min))
 
-    output_img[translation_dist[1]:rows1+translation_dist[1], translation_dist[0]:cols1+translation_dist[0]] = img2
+    # add image using feathering
+    # output_img[translation_dist[1]:rows1+translation_dist[1], translation_dist[0]:cols1+translation_dist[0]] = img2
 
     return output_img
 
@@ -254,86 +324,118 @@ def warpimage(img1, img2, H):
 
 def main(): 
 
-    ##################################################
-    ######## Read in two images from each set ########
-    ##################################################
+    book_img = cv2.imread("book_cover.jpg")
+    office_img = cv2.imread("DanaOffice/DSC_0310.JPG")
 
-    img1_filename = "DSC_0281"
-    img2_filename = "DSC_0282"
-    img3_filename = "DSC_0308"
-    img4_filename = "DSC_0309"
+    office_img[150:230, 400:450] = [0,0,255]
 
-    img1: np.ndarray = cv2.imread(f'DanaHallWay1/{img1_filename}.jpg') 
-    img2: np.ndarray = cv2.imread(f'DanaHallWay1/{img2_filename}.jpg')
-    img3: np.ndarray = cv2.imread(f'DanaOffice/{img3_filename}.jpg')
-    img4: np.ndarray = cv2.imread(f'DanaOffice/{img4_filename}.jpg')
+    tl = [400,150] # [y,x']
+    tr = [400,230]
+    bl = [450,150]
+    br = [470,250]
 
-    ##################################################
-    ### Detect corner pixels using Harris with NMS ###
-    ##################################################
+    cv2.imwrite("test.jpg",office_img)
 
-    print('Finding corners for img1...')
-    corners_img1 = cvCorners(img1)
-    addCornertoImage(img1,corners_img1,f"{img1_filename}_corners.jpg")
+    h, w, _ = book_img.shape
 
-    print('Finding corners for img2...')
-    corners_img2 = cvCorners(img2)
-    addCornertoImage(img2,corners_img2,f"{img2_filename}_corners.jpg")
+    correspondences = []
+    correspondences.append([0,0,tl[0], tl[1]]) # top left
+    correspondences.append([0,w,tr[0], tr[1]]) # top right
+    correspondences.append([h,0,bl[0], bl[1]]) # bottom left
+    correspondences.append([h,w,br[0], br[1]]) # bottom right
 
-    print('Finding corners for img3...')
-    corners_img3 = cvCorners(img3)
-    addCornertoImage(img3,corners_img3,f"{img3_filename}_corners.jpg")
+    print(correspondences)
+    print()
 
-    print('Finding corners for img4...')
-    corners_img4 = cvCorners(img4)
-    addCornertoImage(img4,corners_img4,f"{img4_filename}_corners.jpg")
+    H = findHomgraphy(correspondences)
+
+
+    print(H)
+
+    exgtraCredit = warpimage(book_img, office_img, H)
+    cv2.imwrite("extra_credit.jpg", exgtraCredit)
+
+    # ##################################################
+    # ######## Read in two images from each set ########
+    # ##################################################
+
+    # img1_filename = "DSC_0281"
+    # img2_filename = "DSC_0282"
+    # img3_filename = "DSC_0308"
+    # img4_filename = "DSC_0309"
+
+    # img1: np.ndarray = cv2.imread(f'DanaHallWay1/{img1_filename}.jpg') 
+    # img2: np.ndarray = cv2.imread(f'DanaHallWay1/{img2_filename}.jpg')
+    # img3: np.ndarray = cv2.imread(f'DanaOffice/{img3_filename}.jpg')
+    # img4: np.ndarray = cv2.imread(f'DanaOffice/{img4_filename}.jpg')
+
+    # ##################################################
+    # ### Detect corner pixels using Harris with NMS ###
+    # ##################################################
+
+    # print('Finding corners for img1...')
+    # corners_img1 = cvCorners(img1)
     
-    ##################################################
-    ############## Find correspondences ##############
-    ##################################################
+    # print('Finding corners for img2...')
+    # corners_img2 = cvCorners(img2)
+    
+    # print('Finding corners for img3...')
+    # corners_img3 = cvCorners(img3)    
 
-    wNcc = 7
-    thres = 0
+    # print('Finding corners for img4...')
+    # corners_img4 = cvCorners(img4)
 
-    print("Finding correspondences for set 1...")
-    correspondences1 = findCorrespondences(img1, img2, corners_img1, corners_img2, wNcc, thres)
+    # # addCornertoImage(img1,corners_img1,f"{img1_filename}_corners.jpg")
+    # # addCornertoImage(img2,corners_img2,f"{img2_filename}_corners.jpg")
+    # # addCornertoImage(img3,corners_img3,f"{img3_filename}_corners.jpg")
+    # # addCornertoImage(img4,corners_img4,f"{img4_filename}_corners.jpg")
+    
+    # ##################################################
+    # ############## Find correspondences ##############
+    # ##################################################
 
-    print("Finding correspondences for set 2...")
-    correspondences2 = findCorrespondences(img3, img4, corners_img3, corners_img4, wNcc, thres)
+    # wNcc = 7
+    # thres = 0
 
-    ##################################################
-    ################## Draw Matches ##################
-    ##################################################
+    # print("Finding correspondences for set 1...")
+    # correspondences1 = findCorrespondences(img1, img2, corners_img1, corners_img2, wNcc, thres)
 
-    print("Drawing matches for set 1...")
-    matches1 = drawMatches(img1, img2, correspondences1)
-    cv2.imwrite("matches1.jpg", matches1)
+    # print("Finding correspondences for set 2...")
+    # correspondences2 = findCorrespondences(img3, img4, corners_img3, corners_img4, wNcc, thres)
 
-    print("Drawing matches for set 2...")
-    drawMatches(img3, img4, correspondences2)
-    cv2.imwrite("matches2.jpg", matches1)
+    # ##################################################
+    # ################## Draw Matches ##################
+    # ##################################################
+
+    # print("Drawing matches for set 1...")
+    # matches1 = drawMatches(img1, img2, correspondences1)
+    # cv2.imwrite("matches1.jpg", matches1)
+
+    # print("Drawing matches for set 2...")
+    # drawMatches(img3, img4, correspondences2)
+    # cv2.imwrite("matches2.jpg", matches1)
        
-    ##################################################
-    ######## Estimate homography using RANSAC ########
-    ##################################################
+    # ##################################################
+    # ######## Estimate homography using RANSAC ########
+    # ##################################################
 
-    print("Fiding homograpby for set 1...")
-    H1 = findHomgraphy(correspondences1)
+    # print("Fiding homograpby for set 1...")
+    # H1 = findHomgraphy(correspondences1)
 
-    print("Fiding homograpby for set 2...")
-    H2 = findHomgraphy(correspondences2)
+    # print("Fiding homograpby for set 2...")
+    # H2 = findHomgraphy(correspondences2)
 
-    ##################################################
-    ############# Align images into one ##############
-    ##################################################
+    # ##################################################
+    # ############# Align images into one ##############
+    # ##################################################
 
-    print("Warping images for set 1...")
-    warpedImg1 = warpimage(img1, img2, H1)
-    cv2.imwrite("warpedimg1.jpg", warpedImg1)
+    # print("Warping images for set 1...")
+    # warpedImg1 = warpimage(img1, img2, H1)
+    # cv2.imwrite("warpedimg1.jpg", warpedImg1)
 
-    print("Warping images for set 2...")
-    warpedImg2 = warpimage(img3, img4, H2)
-    cv2.imwrite("warpedimg2.jpg", warpedImg2)
+    # print("Warping images for set 2...")
+    # warpedImg2 = warpimage(img3, img4, H2)
+    # cv2.imwrite("warpedimg2.jpg", warpedImg2)
 
 if __name__ == "__main__":
     main()
