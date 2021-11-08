@@ -316,6 +316,7 @@ def warpimage(img1, img2, H):
     # add image using feathering
     # output_img[translation_dist[1]:rows1+translation_dist[1], translation_dist[0]:cols1+translation_dist[0]] = img2
 
+
     return output_img
 
 ##################################################
@@ -352,90 +353,90 @@ def main():
 
     print(H)
 
-    exgtraCredit = warpimage(book_img, office_img, H)
-    cv2.imwrite("extra_credit.jpg", exgtraCredit)
+    extraCredit = warpimage(book_img, office_img, H)
+    cv2.imwrite("extra_credit.jpg", extraCredit)
 
-    # ##################################################
-    # ######## Read in two images from each set ########
-    # ##################################################
+    ##################################################
+    ######## Read in two images from each set ########
+    ##################################################
 
-    # img1_filename = "DSC_0281"
-    # img2_filename = "DSC_0282"
-    # img3_filename = "DSC_0308"
-    # img4_filename = "DSC_0309"
+    img1_filename = "DSC_0281"
+    img2_filename = "DSC_0282"
+    img3_filename = "DSC_0308"
+    img4_filename = "DSC_0309"
 
-    # img1: np.ndarray = cv2.imread(f'DanaHallWay1/{img1_filename}.jpg') 
-    # img2: np.ndarray = cv2.imread(f'DanaHallWay1/{img2_filename}.jpg')
-    # img3: np.ndarray = cv2.imread(f'DanaOffice/{img3_filename}.jpg')
-    # img4: np.ndarray = cv2.imread(f'DanaOffice/{img4_filename}.jpg')
+    img1: np.ndarray = cv2.imread(f'DanaHallWay1/{img1_filename}.jpg') 
+    img2: np.ndarray = cv2.imread(f'DanaHallWay1/{img2_filename}.jpg')
+    img3: np.ndarray = cv2.imread(f'DanaOffice/{img3_filename}.jpg')
+    img4: np.ndarray = cv2.imread(f'DanaOffice/{img4_filename}.jpg')
 
-    # ##################################################
-    # ### Detect corner pixels using Harris with NMS ###
-    # ##################################################
+    ##################################################
+    ### Detect corner pixels using Harris with NMS ###
+    ##################################################
 
-    # print('Finding corners for img1...')
-    # corners_img1 = cvCorners(img1)
+    print('Finding corners for img1...')
+    corners_img1 = cvCorners(img1)
     
-    # print('Finding corners for img2...')
-    # corners_img2 = cvCorners(img2)
+    print('Finding corners for img2...')
+    corners_img2 = cvCorners(img2)
     
-    # print('Finding corners for img3...')
-    # corners_img3 = cvCorners(img3)    
+    print('Finding corners for img3...')
+    corners_img3 = cvCorners(img3)    
 
-    # print('Finding corners for img4...')
-    # corners_img4 = cvCorners(img4)
+    print('Finding corners for img4...')
+    corners_img4 = cvCorners(img4)
 
-    # # addCornertoImage(img1,corners_img1,f"{img1_filename}_corners.jpg")
-    # # addCornertoImage(img2,corners_img2,f"{img2_filename}_corners.jpg")
-    # # addCornertoImage(img3,corners_img3,f"{img3_filename}_corners.jpg")
-    # # addCornertoImage(img4,corners_img4,f"{img4_filename}_corners.jpg")
+    # addCornertoImage(img1,corners_img1,f"{img1_filename}_corners.jpg")
+    # addCornertoImage(img2,corners_img2,f"{img2_filename}_corners.jpg")
+    # addCornertoImage(img3,corners_img3,f"{img3_filename}_corners.jpg")
+    # addCornertoImage(img4,corners_img4,f"{img4_filename}_corners.jpg")
     
-    # ##################################################
-    # ############## Find correspondences ##############
-    # ##################################################
+    ##################################################
+    ############## Find correspondences ##############
+    ##################################################
 
-    # wNcc = 7
-    # thres = 0
+    wNcc = 7
+    thres = 0
 
-    # print("Finding correspondences for set 1...")
-    # correspondences1 = findCorrespondences(img1, img2, corners_img1, corners_img2, wNcc, thres)
+    print("Finding correspondences for set 1...")
+    correspondences1 = findCorrespondences(img1, img2, corners_img1, corners_img2, wNcc, thres)
 
-    # print("Finding correspondences for set 2...")
-    # correspondences2 = findCorrespondences(img3, img4, corners_img3, corners_img4, wNcc, thres)
+    print("Finding correspondences for set 2...")
+    correspondences2 = findCorrespondences(img3, img4, corners_img3, corners_img4, wNcc, thres)
 
-    # ##################################################
-    # ################## Draw Matches ##################
-    # ##################################################
+    ##################################################
+    ################## Draw Matches ##################
+    ##################################################
 
-    # print("Drawing matches for set 1...")
-    # matches1 = drawMatches(img1, img2, correspondences1)
-    # cv2.imwrite("matches1.jpg", matches1)
+    print("Drawing matches for set 1...")
+    matches1 = drawMatches(img1, img2, correspondences1)
+    cv2.imwrite("matches1.jpg", matches1)
 
-    # print("Drawing matches for set 2...")
-    # drawMatches(img3, img4, correspondences2)
-    # cv2.imwrite("matches2.jpg", matches1)
+    print("Drawing matches for set 2...")
+    drawMatches(img3, img4, correspondences2)
+    cv2.imwrite("matches2.jpg", matches1)
        
-    # ##################################################
-    # ######## Estimate homography using RANSAC ########
-    # ##################################################
+    ##################################################
+    ######## Estimate homography using RANSAC ########
+    ##################################################
 
-    # print("Fiding homograpby for set 1...")
-    # H1 = findHomgraphy(correspondences1)
+    print("Fiding homograpby for set 1...")
+    H1 = findHomgraphy(correspondences1)
 
-    # print("Fiding homograpby for set 2...")
-    # H2 = findHomgraphy(correspondences2)
+    print("Fiding homograpby for set 2...")
+    H2 = findHomgraphy(correspondences2)
 
-    # ##################################################
-    # ############# Align images into one ##############
-    # ##################################################
+    ##################################################
+    ############# Align images into one ##############
+    ##################################################
 
-    # print("Warping images for set 1...")
-    # warpedImg1 = warpimage(img1, img2, H1)
-    # cv2.imwrite("warpedimg1.jpg", warpedImg1)
+    print("Warping images for set 1...")
+    warpedImg1 = warpimage(img1, img2, H1)
+    cv2.imwrite("warpedimg1.jpg", warpedImg1)
 
-    # print("Warping images for set 2...")
-    # warpedImg2 = warpimage(img3, img4, H2)
-    # cv2.imwrite("warpedimg2.jpg", warpedImg2)
+    print("Warping images for set 2...")
+    warpedImg2 = warpimage(img3, img4, H2)
+    cv2.imwrite("warpedimg2.jpg", warpedImg2)
 
 if __name__ == "__main__":
     main()
